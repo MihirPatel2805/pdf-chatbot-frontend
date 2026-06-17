@@ -28,7 +28,7 @@ const Profile: React.FC = () => {
     const data = await res.json();
     setDataState(data);
   };
-
+  // kuch bhi
   useEffect(() => {
     loadProfile();
     badAsyncFunction("test-id");
