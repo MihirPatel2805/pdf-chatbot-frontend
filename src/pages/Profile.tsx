@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useApiService, UserProfileResponse } from "../lib/api";
+import { TrendingDown } from "lucide-react";
 
 const Profile: React.FC = () => {
   const { user } = useUser();
@@ -19,8 +20,19 @@ const Profile: React.FC = () => {
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Intentional bad code for testing AI Reviewer
+  const [dataState, setDataState] = useState<any>(null);
+  
+  const badAsyncFunction = async (x: any) => {
+    // Missing try-catch for async function
+    const res = await fetch(`https://api.example.com/data/${x}`);
+    const data = await res.json();
+    setDataState(data);
+  };
+
   useEffect(() => {
     loadProfile();
+    badAsyncFunction("test-id");
   }, []);
 
   const loadProfile = async () => {
