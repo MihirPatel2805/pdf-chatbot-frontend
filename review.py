@@ -1,62 +1,139 @@
+import os
+import json
 from google import genai
 from github import Github
-import os
 
-print("Starting review.py")
+# ------------------------
+# Config
+# ------------------------
 
 client = genai.Client(
     api_key=os.environ["GEMINI_API_KEY"]
 )
 
-print("Reading files")
+g = Github(os.environ["GITHUB_TOKEN"])
 
-with open("diff.txt") as f:
+repo = g.get_repo(os.environ["GITHUB_REPOSITORY"])
+
+pr_number = int(os.environ["PR_NUMBER"])
+
+pr = repo.get_pull(pr_number)
+
+# ------------------------
+# Read files
+# ------------------------
+
+with open("diff.txt", "r", encoding="utf-8") as f:
     diff = f.read()
 
-with open(".ai-review/rules.md") as f:
+with open(".ai-review/rules.md", "r", encoding="utf-8") as f:
     rules = f.read()
 
-print("Diff length:", len(diff))
+# Skip empty PRs
+if not diff.strip():
+    print("No changes detected.")
+    exit(0)
+
+# ------------------------
+# Prompt
+# ------------------------
 
 prompt = f"""
-You are a senior React engineer.
+You are a senior React + TypeScript reviewer.
 
-Rules:
+Follow these rules:
 
 {rules}
 
-Review this PR:
+Review the following git diff:
 
 {diff}
+
+Return ONLY valid JSON.
+
+Format:
+
+[
+  {{
+    "severity": "error",
+    "message": "Avoid using any type.",
+    "suggestion": "Use a proper interface instead."
+  }},
+  {{
+    "severity": "warning",
+    "message": "Missing loading state.",
+    "suggestion": "Add loading UI while fetching data."
+  }}
+]
+
+Severity can be:
+- error
+- warning
+- suggestion
+
+Return only JSON.
 """
 
-print("Calling Gemini")
+# ------------------------
+# Call Gemini
+# ------------------------
 
 response = client.models.generate_content(
     model="gemini-2.5-flash",
     contents=prompt
 )
 
-print("Gemini response received")
+raw = response.text
 
-review = response.text
+print(raw)
 
-print(review)
+# Remove markdown code fences if Gemini adds them
 
-print("Connecting to GitHub")
+raw = raw.replace("```json", "").replace("```", "").strip()
 
-g = Github(os.environ["GITHUB_TOKEN"])
+try:
+    findings = json.loads(raw)
 
-print("Repository:", os.environ["GITHUB_REPOSITORY"])
+except Exception as e:
+    print("Failed to parse Gemini output")
+    print(e)
 
-repo = g.get_repo(os.environ["GITHUB_REPOSITORY"])
+    pr.create_issue_comment(
+        f"⚠️ Failed to parse AI review.\n\n```\n{raw}\n```"
+    )
 
-print("PR number:", os.environ["PR_NUMBER"])
+    raise
 
-pr = repo.get_pull(int(os.environ["PR_NUMBER"]))
+# ------------------------
+# Create separate comments
+# ------------------------
 
-print("Creating comment")
+emoji_map = {
+    "error": "❌",
+    "warning": "⚠️",
+    "suggestion": "💡"
+}
 
-pr.create_issue_comment(review)
+count = 0
 
-print("Done")
+for finding in findings:
+
+    severity = finding.get("severity", "suggestion")
+    message = finding.get("message", "")
+    suggestion = finding.get("suggestion", "")
+
+    body = f"""
+{emoji_map.get(severity,'💡')} **{severity.upper()}**
+
+{message}
+
+### Suggestion
+
+{suggestion}
+"""
+
+    pr.create_issue_comment(body)
+
+    count += 1
+
+print(f"Posted {count} comments.")
