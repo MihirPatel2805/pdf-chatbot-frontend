@@ -22,9 +22,8 @@ const Profile: React.FC = () => {
 
   // Intentional bad code for testing AI Reviewer
   const [dataState, setDataState] = useState<any>(null);
-  
+
   const badAsyncFunction = async (x: any) => {
-    // Missing try-catch for async function
     const res = await fetch(`https://api.example.com/data/${x}`);
     const data = await res.json();
     setDataState(data);
@@ -244,7 +243,7 @@ const Profile: React.FC = () => {
                 <span className="text-sm text-gray-600">Email Verified:</span>
                 <span className="text-sm text-gray-900">
                   {user?.emailAddresses?.[0]?.verification?.status ===
-                  "verified"
+                    "verified"
                     ? "Yes"
                     : "No"}
                 </span>
